@@ -224,7 +224,27 @@ class _ExportPanelState extends State<ExportPanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('PDF 合并', style: Theme.of(context).textTheme.titleSmall),
+            Row(
+              children: [
+                Text('PDF 合并', style: Theme.of(context).textTheme.titleSmall),
+                if (_config.mergePdf)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '统一输出',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('合并为 PDF'),
@@ -254,6 +274,13 @@ class _ExportPanelState extends State<ExportPanel> {
               ),
               const SizedBox(height: 4),
               Text('统一页面尺寸, 切片居中, 空白白色留白填充', style: Theme.of(context).textTheme.labelSmall),
+              const SizedBox(height: 8),
+              Text(
+                '合并模式所有文件将输出到单个文件夹',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
             ],
           ],
         ),
@@ -302,9 +329,9 @@ class _ExportPanelState extends State<ExportPanel> {
           children: [
             Text('命名规则', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 4),
-            Text('时间戳_原文件名_随机编码_子图编号.扩展名', style: Theme.of(context).textTheme.bodySmall),
+            Text('排序的页码+文件名+行数+列数+原 PDF 的页码', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
-            Text('示例: 20260805_143000_photo_a1b2c3_1.png', style: Theme.of(context).textTheme.labelSmall),
+            Text('示例:3_1786107106414_page_003_名字_r1_c1_pdf3', style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -352,11 +379,12 @@ class _ExportPanelState extends State<ExportPanel> {
                       icon: const Icon(Icons.folder_open),
                       label: const Text('打开输出目录'),
                     ),
-                    if (_lastResult!.files.isNotEmpty)
+                    // 只有未合并PDF时才显示查看文件按钮
+                    if (!_config.mergePdf && _lastResult!.files.isNotEmpty)
                       FilledButton.tonalIcon(
                         onPressed: () => _openFile(_lastResult!.files.last),
-                        icon: const Icon(Icons.picture_as_pdf),
-                        label: Text('查看${_config.mergePdf ? 'PDF' : '文件'}'),
+                        icon: const Icon(Icons.image),
+                        label: const Text('查看文件'),
                       ),
                   ],
                 ),
@@ -461,7 +489,7 @@ class _ExportPanelState extends State<ExportPanel> {
               children: [
                 Icon(Icons.info_outline, size: 16, color: Theme.of(context).colorScheme.tertiary),
                 const SizedBox(width: 8),
-                Expanded(child: Text('单次任务完成后不支持二次重分割, 修改参数需新建任务', style: Theme.of(context).textTheme.bodySmall)),
+                Expanded(child: Text('输出文件将保存在文件夹中,下滑左侧区域快速查看', style: Theme.of(context).textTheme.bodySmall)),
               ],
             ),
           ),

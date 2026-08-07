@@ -34,6 +34,9 @@ class FileItem with ChangeNotifier {
   int? imageWidth;
   int? imageHeight;
 
+  // PDF转换信息
+  int? pdfPageNumber;  // PDF页码 (从1开始)
+
   FileItem({
     required this.id,
     required this.path,
@@ -46,6 +49,7 @@ class FileItem with ChangeNotifier {
     this.loadProgress,
     this.imageWidth,
     this.imageHeight,
+    this.pdfPageNumber,
   });
 
   /// 扩展名 (小写)
@@ -84,6 +88,7 @@ class FileItem with ChangeNotifier {
         'sizeBytes': sizeBytes,
         'type': type.name,
         'addedAt': addedAt.toIso8601String(),
+        'pdfPageNumber': pdfPageNumber,
       };
 
   factory FileItem.fromJson(Map<String, dynamic> json) => FileItem(
@@ -93,7 +98,28 @@ class FileItem with ChangeNotifier {
         sizeBytes: json['sizeBytes'] as int,
         type: FileItemType.values.byName(json['type'] as String),
         addedAt: DateTime.parse(json['addedAt'] as String),
+        pdfPageNumber: json['pdfPageNumber'] as int?,
       );
+
+  /// 创建PDF转换的文件项
+  static FileItem createPdfConverted({
+    required String id,
+    required String path,
+    required String name,
+    required int sizeBytes,
+    required int pageNumber,
+    DateTime? addedAt,
+  }) {
+    return FileItem(
+      id: id,
+      path: path,
+      name: name,
+      sizeBytes: sizeBytes,
+      type: FileItemType.pdfConverted,
+      addedAt: addedAt ?? DateTime.now(),
+      pdfPageNumber: pageNumber,
+    );
+  }
 
   @override
   String toString() => 'FileItem($name, $type, ${sizeFormatted})';

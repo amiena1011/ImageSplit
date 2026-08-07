@@ -52,9 +52,9 @@ class _ImportPanelState extends State<ImportPanel> {
           label: const Text('选择文件'),
         ),
         OutlinedButton.icon(
-          onPressed: fileList.count == 0
-              ? null
-              : () => _confirmClear(context, fileList),
+          onPressed: _canClearList(fileList)
+              ? () => _confirmClear(context, fileList)
+              : null,
           icon: const Icon(Icons.delete_sweep_outlined),
           label: const Text('清空列表'),
         ),
@@ -63,6 +63,23 @@ class _ImportPanelState extends State<ImportPanel> {
           onPressed: () => PdfConvertService.showPdfConvertDialog(context),
           icon: const Icon(Icons.picture_as_pdf),
           label: const Text('PDF'),
+        ),
+        const SizedBox(width: 8),
+        // PDF拖拽区域
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.file_present_outlined, size: 18),
+              const SizedBox(width: 4),
+              const Text('拖拽上传文件'),
+            ],
+          ),
         ),
         const SizedBox(width: 8),
         Chip(
@@ -86,10 +103,38 @@ class _ImportPanelState extends State<ImportPanel> {
       onDragDone: (detail) async {
         setState(() => _dragging = false);
         final paths = detail.files.map((f) => f.path).toList();
-        final fileList = context.read<FileListState>();
-        final n = await fileList.addFromPaths(paths);
-        if (n > 0 && context.mounted) {
-          context.read<SplitState>().syncConfigs(fileList.files);
+
+        // 检查是否有PDF文件
+        final pdfFiles = paths.where((path) => path.toLowerCase().endsWith('.pdf')).toList();
+        if (pdfFiles.isNotEmpty) {
+          // 处理PDF文件
+          for (final pdfPath in pdfFiles) {
+            try {
+              // 显示PDF信息对话框
+              final totalPages = await PdfConvertService.getPdfInfo(pdfPath);
+              if (totalPages > 0) {
+                // 自动转换所有页码
+                final pageExpr = '1-$totalPages';
+                await PdfConvertService.convertPdfToImages(
+                  pdfPath: pdfPath,
+                  pageExpr: pageExpr,
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('PDF处理失败: $e')),
+                );
+              }
+            }
+          }
+        } else {
+          // 处理普通文件
+          final fileList = context.read<FileListState>();
+          final n = await fileList.addFromPaths(paths);
+          if (n > 0 && context.mounted) {
+            context.read<SplitState>().syncConfigs(fileList.files);
+          }
         }
       },
       child: Stack(
@@ -108,6 +153,15 @@ class _ImportPanelState extends State<ImportPanel> {
         ],
       ),
     );
+  }
+
+  bool _canClearList(FileListState fileList) {
+    // 如果没有文件，不能清空
+    if (fileList.count == 0) return false;
+
+    // 如果所有文件都是PDF转换的，不能清空
+    final hasNonPdfFiles = fileList.files.any((file) => !file.isPdfConverted);
+    return hasNonPdfFiles;
   }
 
   void _confirmClear(BuildContext context, FileListState fileList) {

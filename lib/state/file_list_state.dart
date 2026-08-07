@@ -149,6 +149,24 @@ class FileListState extends ChangeNotifier {
   /// 获取排序后的文件 (输出顺序)
   List<FileItem> get orderedFiles => List.unmodifiable(_files);
 
+  /// 获取按页码排序的文件（PDF转换的图片按页码排序，其他文件按添加顺序）
+  List<FileItem> get orderedFilesByPage {
+    return List.unmodifiable(List.from(_files)..sort((a, b) {
+      // 非PDF转换的文件按添加时间排序
+      if (!a.isPdfConverted && !b.isPdfConverted) {
+        return a.addedAt.compareTo(b.addedAt);
+      }
+      // 非PDF转换的文件排在后面
+      if (!a.isPdfConverted) return 1;
+      if (!b.isPdfConverted) return -1;
+
+      // PDF转换文件按页码排序
+      final aPage = a.pdfPageNumber ?? 0;
+      final bPage = b.pdfPageNumber ?? 0;
+      return aPage.compareTo(bPage);
+    }));
+  }
+
   // ---------- 退出保存逻辑 (SRS 4.1.5) ----------
 
   Future<void> setKeepFileList(bool keep) async {

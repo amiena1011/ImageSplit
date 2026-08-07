@@ -76,10 +76,16 @@ class ExportService {
         );
         await for (final slice in slices) {
           final baseName = _baseName(file.name);
-          final randCode = _uuid.v4().substring(0, 6);
-          // SRS 4.3.2: 时间戳+原文件名+随机编码+子图编号
-          final outName =
-              '${timestamp}_${baseName}_${randCode}_${slice.index + 1}${exportConfig.extension}';
+
+          // 计算行列位置
+          final row = slice.index ~/ config.cols + 1;  // 从1开始
+          final col = slice.index % config.cols + 1;   // 从1开始
+
+          // 构建新命名规则：排序位置_原文件名_行数_列数_原PDF页码（如果是PDF转换的）
+          final position = files.indexOf(file) + 1;  // 排序位置，从1开始
+          final pdfPage = file.pdfPageNumber != null ? '_pdf${file.pdfPageNumber}' : '';
+          final outName = '${position}_${baseName}_r${row}_c${col}${pdfPage}${exportConfig.extension}';
+
           final outFile = File(_joinPath(sliceDir.path, outName));
           await outFile.writeAsBytes(slice.bytes);
           outputFiles.add(outFile.path);

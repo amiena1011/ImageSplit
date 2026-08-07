@@ -7,7 +7,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import '../models/file_item.dart';
+import '../services/config_service.dart';
 import '../services/file_service.dart';
 import '../state/file_list_state.dart';
 import 'package:file_picker/file_picker.dart';
@@ -54,8 +56,115 @@ class PdfConvertService {
     }
   }
 
-  /// 执行PDF转图片转换
-  static Future<String> convertPdfToImages({
+  /// 执行PDF转图片转换（不依赖FileListState）
+  static Future<List<FileItem>> convertPdfToImages({
+    required String pdfPath,
+    required String pageExpr,
+    FileService? fileService,
+    FileListState? fileList,
+  }) async {
+    try {
+      final exePath = _getPdfExePath();
+      print('Using PDF exe for convert: $exePath');
+      print('PDF path: $pdfPath');
+      print('Page expr: $pageExpr');
+
+      // 解析页码列表
+      final totalPages = await getPdfInfo(pdfPath);
+      final pages = _parsePageExpression(pageExpr, totalPages);
+
+      // 获取保存目录
+      final saveDir = await getPdfSaveDir();
+
+      // 更新配置中的保存位置
+      try {
+        final config = ConfigService();
+        await config.setLastOutputPath(saveDir);
+      } catch (e) {
+        print('Warning: Could not save output path preference: $e');
+      }
+
+      print('Saving converted files to: $saveDir');
+
+      // 创建临时输出目录
+      final tempDir = Directory.systemTemp.createTempSync('pdf_convert_');
+      final outputDir = tempDir.path;
+
+      // 转义路径并执行转换
+      final escapedPdfPath = pdfPath.replaceAll('"', '\\"');
+      final escapedPageExpr = pageExpr.replaceAll('"', '\\"');
+      final escapedOutputDir = outputDir.replaceAll('"', '\\"');
+      final args = ['convert', escapedPdfPath, escapedPageExpr, '-o', escapedOutputDir];
+
+      final result = await Process.run(exePath, args);
+
+      if (result.exitCode != 0) {
+        throw Exception('PDF转换失败: ${result.stderr}');
+      }
+
+      // 读取转换后的图片文件
+      final convertedFiles = <FileItem>[];
+      final effectiveFileService = fileService ?? FileService();
+
+      await for (final entity in Directory(outputDir).list()) {
+        if (entity is File &&
+            (entity.path.endsWith('.png') || entity.path.endsWith('.jpg'))) {
+          final file = entity as File;
+          final stat = await file.stat();
+
+          // 使用页码 + 时间戳作为新文件名
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final originalName = path.basenameWithoutExtension(file.path);
+          final extension = path.extension(file.path);
+
+          // 找到对应的页码
+          int pageIndex = pages[convertedFiles.length];
+
+          // 格式化页码为3位数字
+          final pageName = 'page_${pageIndex.toString().padLeft(3, '0')}_${originalName}';
+          final uniqueName = '${timestamp}_${pageName}${extension}';
+          final permanentPath = path.join(saveDir, uniqueName);
+
+          // 复制文件到自定义目录
+          await file.copy(permanentPath);
+
+          // 创建FileItem
+          final fileItem = FileItem.createPdfConverted(
+            id: '${timestamp}_$pageIndex',
+            path: permanentPath,
+            name: uniqueName,
+            sizeBytes: stat.size,
+            pageNumber: pageIndex,
+          );
+          convertedFiles.add(fileItem);
+        }
+      }
+
+      // 按页码排序
+      convertedFiles.sort((a, b) {
+        final aPage = a.pdfPageNumber ?? 0;
+        final bPage = b.pdfPageNumber ?? 0;
+        return aPage.compareTo(bPage);
+      });
+
+      // 添加到文件列表（如果提供了fileList）
+      if (fileList != null) {
+        fileList.addAll(convertedFiles);
+      }
+
+      // 清理临时目录
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+
+      return convertedFiles;
+    } catch (e) {
+      throw Exception('PDF转换失败: $e');
+    }
+  }
+
+  /// 执行PDF转图片转换（原方法，保留向后兼容）
+  static Future<String> convertPdfToImagesRaw({
     required String pdfPath,
     required String pageExpr,
     String? outputDir,
@@ -97,6 +206,27 @@ class PdfConvertService {
     }
   }
 
+  /// 获取PDF转换图片的保存目录
+  static Future<String> getPdfSaveDir({bool allowCustom = true}) async {
+    if (allowCustom) {
+      // 尝试获取配置中保存的路径
+      final config = ConfigService();
+      final customPath = await config.getLastOutputPath();
+      if (customPath.isNotEmpty) {
+        final customDir = Directory(customPath);
+        if (await customDir.exists()) {
+          return customDir.path;
+        }
+      }
+    }
+
+    // 使用默认保存目录
+    final configDir = await getApplicationDocumentsDirectory();
+    final pdfDir = Directory(path.join(configDir.path, 'ImageSplit', 'converted_files'));
+    await pdfDir.create(recursive: true);
+    return pdfDir.path;
+  }
+
   /// 创建PDF转换对话框窗口
   static Future<void> showPdfConvertDialog(BuildContext context) async {
     final fileList = context.read<FileListState>();
@@ -120,13 +250,14 @@ class PdfConvertService {
       pdfFile,
       selectedPages.join(','),
     );
-    if (!confirmed) return;
+    if (confirmed != true) return;
 
     // 执行转换
     _executeConversion(
       context,
       pdfFile,
       selectedPages.join(','),
+      totalPages,
       fileService,
       fileList,
     );
@@ -369,8 +500,24 @@ class PdfConvertService {
     return pages.toSet().toList();
   }
 
+  // 根据页码对转换后的文件进行排序
+  static List<FileItem> _sortFilesByPageNumber(List<FileItem> files) {
+    return List.from(files)
+      ..sort((a, b) {
+        // 非PDF转换的文件排在后面
+        if (!a.isPdfConverted && !b.isPdfConverted) return 0;
+        if (!a.isPdfConverted) return 1;
+        if (!b.isPdfConverted) return -1;
+
+        // PDF转换文件按页码排序
+        final aPage = a.pdfPageNumber ?? 0;
+        final bPage = b.pdfPageNumber ?? 0;
+        return aPage.compareTo(bPage);
+      });
+  }
+
   // 显示确认对话框
-  static Future<bool> _showConfirmDialog(
+  static Future<bool?> _showConfirmDialog(
     BuildContext context,
     String pdfPath,
     String pageExpr,
@@ -379,19 +526,65 @@ class PdfConvertService {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('确认转换'),
-            content: Text('将转换 "$pdfPath"\n\n选择的页码: $pageExpr\n\n转换后的图片将添加到文件列表'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('将转换 "$pdfPath"'),
+                const SizedBox(height: 8),
+                Text('选择的页码: $pageExpr'),
+                const SizedBox(height: 8),
+                const Text('转换后的图片将添加到文件列表'),
+                const SizedBox(height: 8),
+                const Text('保存位置:'),
+                const SizedBox(height: 4),
+                FutureBuilder<String>(
+                  future: getPdfSaveDir(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return Text(
+                        snapshot.data!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    }
+                    return const CircularProgressIndicator();
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        final result = await FilePicker.platform.getDirectoryPath();
+                        if (result != null) {
+                          final config = ConfigService();
+                          await config.setLastOutputPath(result);
+                          Navigator.of(ctx).pop(true);
+                        }
+                      },
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text('选择保存位置'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      icon: const Icon(Icons.save),
+                      label: const Text('确认转换'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
                 child: const Text('取消'),
               ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('确定转换'),
-              ),
             ],
           ),
-        ) ?? false;
+        );
   }
 
   // 执行转换
@@ -399,6 +592,7 @@ class PdfConvertService {
     BuildContext context,
     String pdfPath,
     String pageExpr,
+    int totalPages,
     FileService fileService,
     FileListState fileList,
   ) async {
@@ -427,18 +621,39 @@ class PdfConvertService {
       tempDir = Directory.systemTemp.createTempSync('pdf_convert_');
       final outputDir = tempDir.path;
 
+      // 获取文件服务和列表
+      final fileList = context.read<FileListState>();
+      final fileService = FileService();
+
       // 执行转换
-      final result = await convertPdfToImages(
+      await convertPdfToImages(
         pdfPath: pdfPath,
         pageExpr: pageExpr,
-        outputDir: outputDir,
+        fileService: fileService,
+        fileList: fileList,
       );
 
       // 关闭进度对话框
       if (context.mounted) Navigator.of(context).pop();
 
+      // 获取最终保存目录
+      final saveDir = await getPdfSaveDir();
+
+      // 更新配置中的保存位置
+      try {
+        final config = ConfigService();
+        await config.setLastOutputPath(saveDir);
+      } catch (e) {
+        print('Warning: Could not save output path preference: $e');
+      }
+
+      print('Saving converted files to: $saveDir');
+
       // 读取转换后的图片文件
       final convertedFiles = <FileItem>[];
+
+      // 解析页码列表
+      final pageNumbers = _parsePageExpression(pageExpr, totalPages);
 
       await for (final entity in Directory(outputDir).list()) {
         if (entity is File &&
@@ -446,34 +661,60 @@ class PdfConvertService {
           final file = entity as File;
           final stat = await file.stat();
 
-          // 复制文件到永久目录
-          final uniqueName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(file.path)}';
-          final permanentDir = await Directory(path.join(Directory.current.path, 'converted_files')).create(recursive: true);
-          final permanentPath = path.join(permanentDir.path, uniqueName);
+          // 根据文件名提取页码（假设文件名包含页码信息）
+          // 如果文件名不包含页码，则按顺序分配
+          int pageIndex = 0;
+          final pagePattern = RegExp(r'(\d+)(?!.*\d)');
+          final match = pagePattern.firstMatch(file.path);
+
+          if (match != null) {
+            // 从文件名中提取页码
+            pageIndex = int.parse(match.group(1)!);
+          } else {
+            // 如果文件名没有页码，按解析的顺序分配
+            pageIndex = pageNumbers[convertedFiles.length];
+          }
+
+          // 使用页码 + 时间戳作为新文件名
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final originalName = path.basenameWithoutExtension(file.path);
+          final extension = path.extension(file.path);
+          final pageName = 'page_${pageIndex.toString().padLeft(3, '0')}_${originalName}';
+          final uniqueName = '${timestamp}_${pageName}${extension}';
+          final permanentPath = path.join(saveDir, uniqueName);
+
+          // 复制文件到自定义目录
           await file.copy(permanentPath);
 
-          // 转换为FileItem并添加到列表
-          final fileItem = await fileService.createFileItem(
+          // 创建PDF转换的文件项
+          final fileItem = FileItem.createPdfConverted(
+            id: '${DateTime.now().millisecondsSinceEpoch}_$pageIndex',
             path: permanentPath,
             name: uniqueName,
             sizeBytes: stat.size,
+            pageNumber: pageIndex,
           );
-
-          // 标记为PDF转换的文件
-          fileItem.type = FileItemType.pdfConverted;
           convertedFiles.add(fileItem);
         }
       }
+
+      // 按页码排序
+      convertedFiles.sort((a, b) {
+        final aPage = a.pdfPageNumber ?? 0;
+        final bPage = b.pdfPageNumber ?? 0;
+        return aPage.compareTo(bPage);
+      });
 
       // 添加到文件列表
       if (convertedFiles.isNotEmpty) {
         if (context.mounted) {
           fileList.addAll(convertedFiles);
 
-          // 显示成功消息
+          // 显示成功消息和保存位置
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('成功转换 ${convertedFiles.length} 张图片'),
+              content: Text('成功转换 ${convertedFiles.length} 张图片\n保存位置: $saveDir'),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
