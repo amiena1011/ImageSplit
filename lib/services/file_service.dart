@@ -37,6 +37,28 @@ class FileService {
     return items;
   }
 
+  /// 通过文件路径创建文件项 (用于PDF转换后的文件)
+  Future<FileItem> createFileItem({
+    required String path,
+    required String name,
+    required int sizeBytes,
+    FileItemType type = FileItemType.image,
+  }) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      throw Exception('文件不存在: $path');
+    }
+
+    return FileItem(
+      id: _uuid.v4(),
+      path: path,
+      name: name,
+      sizeBytes: sizeBytes,
+      type: type,
+      addedAt: DateTime.now(),
+    );
+  }
+
   FileItem _fromPlatformFile(PlatformFile pf) {
     final path = pf.path ?? pf.name;
     final ext = path.toLowerCase().substring(path.lastIndexOf('.'));

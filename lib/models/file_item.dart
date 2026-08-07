@@ -4,7 +4,10 @@
 import 'package:flutter/foundation.dart';
 
 /// 文件类型枚举
-enum FileItemType { image }
+enum FileItemType {
+  image,        // 普通图片
+  pdfConverted  // 从PDF转换的图片
+}
 
 /// 文件加载状态 (SRS 4.1.4 导入预校验: 超大图片加载实时展示进度)
 enum FileItemStatus {
@@ -20,7 +23,7 @@ class FileItem with ChangeNotifier {
   final String path;           // 原始文件路径 (只读, 不修改源文件 SRS 7.2)
   final String name;
   final int sizeBytes;
-  final FileItemType type;
+  FileItemType type;
   DateTime addedAt;
 
   FileItemStatus status;
@@ -54,6 +57,9 @@ class FileItem with ChangeNotifier {
 
   /// 是否图片
   bool get isImage => true;
+
+  /// 是否从PDF转换的图片
+  bool get isPdfConverted => type == FileItemType.pdfConverted;
 
   /// 格式化文件大小
   String get sizeFormatted {

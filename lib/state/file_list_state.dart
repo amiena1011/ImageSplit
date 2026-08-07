@@ -39,6 +39,16 @@ class FileListState extends ChangeNotifier {
     return _addItems(items);
   }
 
+  /// 添加多个文件项 (用于PDF转换后的文件)
+  void addAll(List<FileItem> items) {
+    if (items.isEmpty) return;
+    _files.addAll(items);
+    _logService.success('PDF转换添加 ${items.length} 个文件');
+    notifyListeners();
+    // 异步校验
+    _validateItems(items);
+  }
+
   int _addItems(List<FileItem> items) {
     if (items.isEmpty) return 0;
     _files.addAll(items);

@@ -6,6 +6,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../services/pdf_convert_service.dart';
 import '../state/file_list_state.dart';
 import '../state/split_state.dart';
 import '../widgets/file_list_view.dart';
@@ -56,6 +57,12 @@ class _ImportPanelState extends State<ImportPanel> {
               : () => _confirmClear(context, fileList),
           icon: const Icon(Icons.delete_sweep_outlined),
           label: const Text('清空列表'),
+        ),
+        const SizedBox(width: 8),
+        FilledButton.icon(
+          onPressed: () => PdfConvertService.showPdfConvertDialog(context),
+          icon: const Icon(Icons.picture_as_pdf),
+          label: const Text('PDF'),
         ),
         const SizedBox(width: 8),
         Chip(
