@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image_split_pdf/app.dart';
+import 'package:ImageSplit/app.dart';
 
 void main() {
   testWidgets('App starts without error', (WidgetTester tester) async {

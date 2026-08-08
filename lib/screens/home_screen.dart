@@ -41,7 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.sizeOf(context).width >= 900;
+    final isWide = MediaQuery.sizeOf(context).width >= 800;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) => _onExit(context),
@@ -55,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         body: isWide ? _buildWide(context) : _buildNarrow(context),
-        bottomNavigationBar: isWide ? null : _buildBottomNav(),
+        bottomNavigationBar: !isWide ? _buildBottomNav() : null,
       ),
     );
   }
@@ -127,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  
   Widget _buildNarrow(BuildContext context) {
     return Column(
       children: [
