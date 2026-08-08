@@ -14,7 +14,7 @@ dependencies:
   # 文件选择与路径管理 (模块1/8)
   file_picker: ^8.1.2
   path_provider: ^2.1.4
-  path: ^1.9.0
+  path: ^1.8.0
 
   # 本地配置持久化 (模块8)
   shared_preferences: ^2.3.2
