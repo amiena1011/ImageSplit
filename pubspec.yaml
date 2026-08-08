@@ -1,5 +1,5 @@
-name: image_split_pdf
-description: "图片分割预览与PDF合成工具 - Flutter Windows+Android 跨端版"
+name: ImageSplit
+description: "ImageSplit - Flutter Windows+Android 跨端版"
 publish_to: 'none'
 version: 1.0.0+1
 

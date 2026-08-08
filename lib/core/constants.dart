@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 class AppConstants {
   AppConstants._();
 
-  static const String appName = '图片分割预览与PDF合成工具';
+  static const String appName = 'ImageSplit';
   static const String appVersion = '1.0.0';
 
   /// 支持的图片格式 (SRS 4.1.1)

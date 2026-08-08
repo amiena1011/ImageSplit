@@ -1,0 +1,87 @@
+name: Build and Release Windows Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Application version (e.g., 2.1.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.0'
+          cache: true
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Update version in installer.iss
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          (Get-Content installer.iss) -replace '#define MyAppVersion "2.0"', "#define MyAppVersion `"$version`"" | Set-Content installer.iss
+          Write-Output "Updated version to $version in installer.iss"
+
+      - name: Update paths in installer.iss to relative paths
+        run: |
+          $content = Get-Content installer.iss
+          $content = $content -replace 'E:\\codetest\\flt\\build\\windows\\x64\\runner\\Release\\', '{src}\\build\\windows\\x64\\runner\\Release\\'
+          $content = $content -replace 'E:\\codetest\\flt\\', '{src}\\'
+          $content = $content -replace 'InfoBeforeFile=E:\\codetest\\flt\\INSTALL.txt', 'InfoBeforeFile={src}\\INSTALL.txt'
+          $content = $content -replace 'SetupIconFile=E:\\codetest\\flt\\iconico.ico', 'SetupIconFile={src}\\iconico.ico'
+          $content | Set-Content installer.iss
+          Write-Output "Updated paths to relative paths in installer.iss"
+
+      - name: Build Windows application
+        run: |
+          flutter build windows --release
+
+      - name: Create output directory
+        run: |
+          New-Item -ItemType Directory -Path release
+
+      - name: Copy tool files to release directory
+        run: |
+          New-Item -ItemType Directory -Path "release/tool" -Force
+          Copy-Item -Path "build/windows/x64/runner/Release/tool/*" -Destination "release/tool" -Recurse -Force
+          Write-Output "Copied tool files to release/tool directory"
+
+      - name: Package with Inno Setup
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\Compil32.exe' /cc installer.iss
+          Move-Item -Path "ImageSplitInstaller.exe" -Destination "release/ImageSplitInstaller_${{ github.event.inputs.version }}.exe"
+
+      - name: Create tag
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git tag $version
+          git push origin $version
+
+      - name: Clean Flutter build
+        run: |
+          flutter clean
+          flutter pub get
+
+      - name: Create and upload release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          release_name: Release ${{ github.event.inputs.version }}
+          body_path: update.md
+          draft: false
+          prerelease: false
+          files: |
+            release/ImageSplitInstaller_${{ github.event.inputs.version }}.exe

@@ -47,7 +47,7 @@ class App extends StatelessWidget {
         child: Consumer<AppState>(
           builder: (context, appState, _) {
             return MaterialApp(
-              title: '图片分割预览与PDF合成工具',
+              title: 'ImageSplit',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,

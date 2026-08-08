@@ -2,10 +2,10 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 ; Non-commercial use only
 
-#define MyAppName "Í¼Æ¬·Ö¸îÆ÷"
+#define MyAppName "ImageSplit"
 #define MyAppVersion "2.0"
 #define MyAppPublisher "StupidCat, Inc."
-#define MyAppExeName "image_split_pdf.exe"
+#define MyAppExeName "ImageSplit.exe"
 #define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".myp"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -23,7 +23,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ChangesAssociations=yes
 DisableProgramGroupPage=yes
 InfoBeforeFile=E:\codetest\flt\INSTALL.txt
-OutputBaseFilename=ImageSplitInstaller
+OutputBaseFilename=${#MyAppVersion}_win64_ImageSplit
 SetupIconFile=E:\codetest\flt\iconico.ico
 SolidCompression=yes
 WizardStyle=modern dynamic windows11
@@ -41,8 +41,8 @@ Source: "E:\codetest\flt\build\windows\x64\runner\Release\dartjni.dll"; DestDir:
 Source: "E:\codetest\flt\build\windows\x64\runner\Release\desktop_drop_plugin.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "E:\codetest\flt\build\windows\x64\runner\Release\flutter_windows.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "E:\codetest\flt\build\windows\x64\runner\Release\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
-; ====ÐÂÔötoolÎÄ¼þ¼Ð£¬Óëdata²ßÂÔÍêÈ«Ò»ÖÂ====
-Source: "E:\codetest\flt\build\windows\x64\runner\Release\tool\*"; DestDir: "{app}\tool"; Flags: ignoreversion recursesubdirs createallsubdirs
+; ====å·¥å…·æ–‡ä»¶ç›®å½•ï¼Œä¸Ždataç›®å½•ç»“æž„ä¸€è‡´====
+Source: "{src}\release\tool\*"; DestDir: "{app}\tool"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Registry]
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue
